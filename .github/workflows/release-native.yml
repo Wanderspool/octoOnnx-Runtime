@@ -1,0 +1,92 @@
+name: Build and Release ONNX Runtime Repack
+
+on:
+  push:
+    tags:
+      - 'v*'
+      - 'onnx-v*'
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: 'Release Tag'
+        required: true
+        default: 'v1.24.1-octopus'
+      dry_run:
+        description: 'Build everything but do not create a release'
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+jobs:
+  repack:
+    name: Repack ONNX Runtime Binaries
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Download and package Linux amd64
+        run: |
+          wget -q https://github.com/microsoft/onnxruntime/releases/download/v1.24.1/onnxruntime-linux-x64-1.24.1.tgz
+          tar -xzf onnxruntime-linux-x64-1.24.1.tgz
+          mkdir -p dist/linux-amd64
+          cp onnxruntime-linux-x64-1.24.1/lib/libonnxruntime.so.1.24.1 dist/linux-amd64/
+          tar -czf onnxruntime-octopus-linux-amd64.tar.gz -C dist/linux-amd64 libonnxruntime.so.1.24.1
+
+      - name: Download and package Linux arm64
+        run: |
+          wget -q https://github.com/microsoft/onnxruntime/releases/download/v1.24.1/onnxruntime-linux-aarch64-1.24.1.tgz
+          tar -xzf onnxruntime-linux-aarch64-1.24.1.tgz
+          mkdir -p dist/linux-arm64
+          cp onnxruntime-linux-aarch64-1.24.1/lib/libonnxruntime.so.1.24.1 dist/linux-arm64/
+          tar -czf onnxruntime-octopus-linux-arm64.tar.gz -C dist/linux-arm64 libonnxruntime.so.1.24.1
+
+      - name: Download and package macOS amd64 (v1.20.1)
+        run: |
+          wget -q https://github.com/microsoft/onnxruntime/releases/download/v1.20.1/onnxruntime-osx-x86_64-1.20.1.tgz
+          tar -xzf onnxruntime-osx-x86_64-1.20.1.tgz
+          mkdir -p dist/darwin-amd64
+          cp onnxruntime-osx-x86_64-1.20.1/lib/libonnxruntime.dylib dist/darwin-amd64/
+          tar -czf onnxruntime-octopus-darwin-amd64.tar.gz -C dist/darwin-amd64 libonnxruntime.dylib
+
+      - name: Download and package macOS arm64
+        run: |
+          wget -q https://github.com/microsoft/onnxruntime/releases/download/v1.24.1/onnxruntime-osx-arm64-1.24.1.tgz
+          tar -xzf onnxruntime-osx-arm64-1.24.1.tgz
+          mkdir -p dist/darwin-arm64
+          cp onnxruntime-osx-arm64-1.24.1/lib/libonnxruntime.dylib dist/darwin-arm64/
+          tar -czf onnxruntime-octopus-darwin-arm64.tar.gz -C dist/darwin-arm64 libonnxruntime.dylib
+
+      - name: Download and package Windows amd64
+        run: |
+          wget -q https://github.com/microsoft/onnxruntime/releases/download/v1.24.1/onnxruntime-win-x64-1.24.1.zip
+          unzip -q onnxruntime-win-x64-1.24.1.zip
+          mkdir -p dist/windows-amd64
+          cp onnxruntime-win-x64-1.24.1/lib/onnxruntime.dll dist/windows-amd64/
+          cd dist/windows-amd64 && zip -q ../../onnxruntime-octopus-windows-amd64.zip onnxruntime.dll
+
+      - name: Download and package Windows arm64
+        run: |
+          wget -q https://github.com/microsoft/onnxruntime/releases/download/v1.24.1/onnxruntime-win-arm64-1.24.1.zip
+          unzip -q onnxruntime-win-arm64-1.24.1.zip
+          mkdir -p dist/windows-arm64
+          cp onnxruntime-win-arm64-1.24.1/lib/onnxruntime.dll dist/windows-arm64/
+          cd dist/windows-arm64 && zip -q ../../onnxruntime-octopus-windows-arm64.zip onnxruntime.dll
+
+      - name: Collect and verify
+        run: |
+          mkdir -p release
+          mv onnxruntime-octopus-*.tar.gz onnxruntime-octopus-*.zip release/
+          cd release && sha256sum * > SHA256SUMS && cat SHA256SUMS
+
+      - name: Create draft release
+        if: ${{ github.event_name == 'push' || !inputs.dry_run }}
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release/*
+          draft: true
+          tag_name: ${{ github.ref_type == 'tag' && github.ref_name || inputs.tag_name }}
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
