@@ -74,6 +74,36 @@ jobs:
           cp onnxruntime-win-arm64-1.24.1/lib/onnxruntime.dll dist/windows-arm64/
           cd dist/windows-arm64 && zip -q ../../onnxruntime-octopus-windows-arm64.zip onnxruntime.dll
 
+      # Android: Official AAR from Maven Central contains arm64-v8a, x86_64, armeabi-v7a, x86
+      # We extract the shared libraries and headers directly.
+      - name: Download and package Android
+        run: |
+          wget -q "https://repo1.maven.org/maven2/com/microsoft/onnxruntime/onnxruntime-android/1.24.1/onnxruntime-android-1.24.1.aar" -O onnxruntime-android.aar
+          # AAR is a zip file
+          unzip -q onnxruntime-android.aar -d onnxruntime-android-extracted
+
+          # Package arm64-v8a
+          mkdir -p dist/android-arm64
+          cp onnxruntime-android-extracted/jni/arm64-v8a/libonnxruntime.so dist/android-arm64/
+          cp -r onnxruntime-android-extracted/headers dist/android-arm64/
+          cd dist/android-arm64 && zip -qr ../../onnxruntime-octopus-android-arm64.zip . && cd ../..
+
+          # Package x86_64
+          mkdir -p dist/android-amd64
+          cp onnxruntime-android-extracted/jni/x86_64/libonnxruntime.so dist/android-amd64/
+          cp -r onnxruntime-android-extracted/headers dist/android-amd64/
+          cd dist/android-amd64 && zip -qr ../../onnxruntime-octopus-android-amd64.zip . && cd ../..
+
+      # iOS: Official xcframework distributed via Swift Package Manager / CocoaPods.
+      # The canonical source is download.onnxruntime.ai — same binary MS uses in their pod.
+      - name: Download and package iOS xcframework
+        run: |
+          wget -q "https://download.onnxruntime.ai/pod-archive-onnxruntime-c-1.24.1.zip" -O onnxruntime-ios.zip
+          unzip -q onnxruntime-ios.zip -d onnxruntime-ios-extracted
+          # The zip contains onnxruntime.xcframework and headers
+          ls onnxruntime-ios-extracted/
+          zip -qr onnxruntime-octopus-ios-xcframework.zip onnxruntime-ios-extracted/
+
       - name: Collect and verify
         run: |
           mkdir -p release
